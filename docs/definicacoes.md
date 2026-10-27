@@ -187,7 +187,7 @@ Eu evitaria deixar cada integrante desenvolver um subsistema inteiro por vários
 
 Uma divisão inicial possível é:
 
-| Integrante A                                             | Integrante B                                 |
+| Integrante A - Miquéias                                  | Integrante B - Rewelli                       |
 | -------------------------------------------------------- | -------------------------------------------- |
 | Servidor TCP, sessões e relay                            | Cliente TCP, framing e interface de terminal |
 | Registro e distribuição das chaves públicas              | ECDH, HKDF e AES-GCM                         |
