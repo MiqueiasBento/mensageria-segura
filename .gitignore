@@ -1,1 +1,5 @@
-anotacoes/
+anotacoes/*
+!docs/anotacoes/etapa-inicial.md
+.venv/
+__pycache__/
+.pytest_cache/
