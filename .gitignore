@@ -3,3 +3,6 @@ anotacoes/*
 .venv/
 __pycache__/
 .pytest_cache/
+
+# pastas_locais
+original_archives
