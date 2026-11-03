@@ -1,4 +1,4 @@
-anotacoes/*
+anotacoes/
 !docs/anotacoes/etapa-inicial.md
 .venv/
 __pycache__/
