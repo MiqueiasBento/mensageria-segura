@@ -6,3 +6,6 @@ __pycache__/
 
 # pastas_locais
 original_archives
+# Identidade local: a chave privada nunca deve ser versionada.
+secrets/
+certs/server.crt
