@@ -1,9 +1,11 @@
-"""Mensagens JSON de controle para a etapa inicial sem criptografia."""
+"""Serialização e validação dos campos públicos do protocolo."""
 
 import base64
 import binascii
 import json
 from uuid import UUID
+
+from src.common.constants import TAMANHO_MAXIMO_QUADRO_E2E, TAMANHO_CHAVE_PUBLICA
 
 
 class ErroProtocolo(ValueError):
@@ -11,13 +13,13 @@ class ErroProtocolo(ValueError):
 
 
 def codificar_mensagem(mensagem):
-    return json.dumps(mensagem, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(mensagem, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def decodificar_mensagem(dados):
     try:
-        mensagem = json.loads(dados.decode("utf-8"))
-    except (UnicodeError, ValueError) as erro:
+        mensagem = json.loads(dados.decode("utf-8"), object_pairs_hook=_objeto_sem_repeticao, parse_constant=_constante_invalida)
+    except (UnicodeError, ValueError, RecursionError) as erro:
         raise ErroProtocolo("invalid JSON message") from erro
     if not isinstance(mensagem, dict) or not isinstance(mensagem.get("type"), str):
         raise ErroProtocolo("message must have a type")
@@ -41,7 +43,7 @@ def decodificar_chave_publica(valor):
         chave = base64.b64decode(valor, validate=True)
     except (ValueError, binascii.Error) as erro:
         raise ErroProtocolo("invalid client_public_key") from erro
-    if len(chave) != 32 or base64.b64encode(chave).decode("ascii") != valor:
+    if len(chave) != TAMANHO_CHAVE_PUBLICA or base64.b64encode(chave).decode("ascii") != valor:
         raise ErroProtocolo("client_public_key must contain 32 bytes")
     return chave
 
@@ -53,6 +55,19 @@ def decodificar_conteudo(valor):
         conteudo = base64.b64decode(valor, validate=True)
     except (ValueError, binascii.Error) as erro:
         raise ErroProtocolo("invalid payload") from erro
-    if not conteudo or len(conteudo) > 8192:
-        raise ErroProtocolo("payload length must be 1..8192 bytes")
+    if not conteudo or len(conteudo) > TAMANHO_MAXIMO_QUADRO_E2E:
+        raise ErroProtocolo("payload length must be 1..4164 bytes")
     return conteudo
+
+
+def _objeto_sem_repeticao(pares):
+    objeto = {}
+    for chave, valor in pares:
+        if chave in objeto:
+            raise ErroProtocolo("campo JSON repetido")
+        objeto[chave] = valor
+    return objeto
+
+
+def _constante_invalida(valor):
+    raise ErroProtocolo("constante JSON não permitida")

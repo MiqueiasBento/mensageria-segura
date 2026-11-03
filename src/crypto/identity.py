@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from cryptography import x509
-from cryptography.exceptions import InvalidSignature
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.x509.oid import NameOID
@@ -44,7 +44,7 @@ def validar_certificado(certificado_pem, agora=None):
             raise ErroIdentidade("certificado não permite assinatura digital")
         certificado.verify_directly_issued_by(certificado)
         return certificado
-    except (ValueError, TypeError, InvalidSignature, x509.ExtensionNotFound) as erro:
+    except (ValueError, TypeError, InvalidSignature, UnsupportedAlgorithm, x509.ExtensionNotFound, x509.DuplicateExtension) as erro:
         raise ErroIdentidade("certificado inválido ou fora da validade") from erro
 
 

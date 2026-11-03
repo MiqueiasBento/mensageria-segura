@@ -49,7 +49,10 @@ def transcricao(chave_servidor, chave_cliente, id_cliente, salt):
 
 
 def _canonico(mensagem):
-    return json.dumps(mensagem, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
+    try:
+        return json.dumps(mensagem, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
+    except (ValueError, TypeError, RecursionError) as erro:
+        raise ErroHandshake("mensagem não possui representação canônica válida") from erro
 
 
 @dataclass

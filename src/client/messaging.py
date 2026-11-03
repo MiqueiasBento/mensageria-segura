@@ -20,7 +20,11 @@ from src.client.peers import ErroMensagem, ErroReplay, criar_estado_peer, prepar
 from src.common.constants import TAMANHO_ID, TAMANHO_NONCE
 from src.common.framing import ErroQuadro
 from src.common.protocol import ErroProtocolo, decodificar_chave_publica, decodificar_conteudo, validar_id_cliente
-from src.crypto.key_derivation import SALT_PROVISORIO, gerar_par_efemero
+from src.crypto.key_derivation import gerar_par_efemero
+from src.crypto.identity import carregar_certificado_confiavel
+from src.crypto.handshake import validar_handshake
+from src.common.framing import escrever_quadro
+from src.common.protocol import codificar_mensagem
 
 
 class ErroCliente(Exception):
@@ -41,12 +45,16 @@ def impressao_digital(chave_publica):
 
 
 class Cliente:
-    def __init__(self, id_cliente=None):
+    def __init__(self, id_cliente=None, certificado_confiavel=None):
         self.id_cliente = validar_id_cliente(id_cliente) if id_cliente else str(uuid.uuid4())
         self.id_bytes = uuid.UUID(self.id_cliente).bytes
-        # Par efemero novo a cada Cliente: reconectar = criar outro Cliente = chaves novas.
+        # A conexão renova este par, inclusive ao reutilizar a instância.
         self._chave_privada, self.chave_publica = gerar_par_efemero()
         self._salt = None
+        self._certificado_confiavel = certificado_confiavel
+        self._canal = None
+        self._escutando = False
+        self._encerrando = False
         self.peers = {}               # client_id (texto) -> EstadoPeer
         self.eventos = asyncio.Queue()
         self._leitor = None
@@ -59,41 +67,54 @@ class Cliente:
     # ------------------------------------------------------------------ conexao
 
     async def conectar(self, endereco=connection.ENDERECO_PADRAO, porta=connection.PORTA_PADRAO):
-        """Abre a conexao, registra, conclui o handshake e carrega a lista de peers."""
-        self._leitor, self._escritor = await connection.conectar(endereco, porta)
+        """Renova as chaves e exige handshake antes de aceitar o diretório."""
+        if self._escutando or (self._escritor is not None and not self._escritor.is_closing()):
+            raise ErroCliente("a conexão anterior ainda está ativa")
+        self._chave_privada, self.chave_publica = gerar_par_efemero()
+        self._encerrando = False
+        self.peers.clear()
+        while not self.eventos.empty():
+            self.eventos.get_nowait()
         try:
-            await connection.registrar(self._escritor, self.id_cliente, self.chave_publica)
-            self._salt = await self._handshake()
-            mensagem = await connection.receber_mensagem(self._leitor)
-            if mensagem is None or mensagem.get("type") != "CLIENT_LIST":
-                raise ErroCliente("expected CLIENT_LIST after REGISTER")
-            clientes = mensagem.get("clients")
-            if not isinstance(clientes, list):
-                raise ErroProtocolo("invalid CLIENT_LIST")
-            for item in clientes:
-                if not isinstance(item, dict):
-                    raise ErroProtocolo("invalid CLIENT_LIST entry")
-                self._adicionar_peer(item.get("client_id"), item.get("client_public_key"))
+            async with asyncio.timeout(10):
+                self._leitor, self._escritor = await connection.conectar(endereco, porta)
+                await connection.registrar(self._escritor, self.id_cliente, self.chave_publica)
+                self._salt = await self._handshake()
+                mensagem = await connection.receber_mensagem(self._leitor, self._canal)
+                if mensagem is None or mensagem.get("type") != "CLIENT_LIST":
+                    raise ErroCliente("esperado CLIENT_LIST após o handshake")
+                clientes = mensagem.get("clients")
+                if not isinstance(clientes, list):
+                    raise ErroProtocolo("invalid CLIENT_LIST")
+                for item in clientes:
+                    if not isinstance(item, dict):
+                        raise ErroProtocolo("invalid CLIENT_LIST entry")
+                    self._adicionar_peer(item.get("client_id"), item.get("client_public_key"))
         except BaseException:
             await self.fechar()
             raise
 
     async def _handshake(self):
-        """Ponto de integracao com o handshake do Integrante A (Etapa 10).
-
-        TODO handshake: ler a resposta do servidor (pk_S, certificado, assinatura,
-        salt_srv), validar o certificado contra certs/server.crt e a assinatura
-        RSA-PSS sobre SHA256(pk_server || pk_client || client_id || salt). Se
-        falhar, lancar ErroCliente (conectar() fecha a conexao). Retornar salt_srv.
-        """
-        return SALT_PROVISORIO
+        certificado = self._certificado_confiavel
+        if certificado is None:
+            certificado = carregar_certificado_confiavel()
+        elif not isinstance(certificado, bytes):
+            certificado = carregar_certificado_confiavel(certificado)
+        mensagem = await connection.receber_mensagem(self._leitor)
+        salt, self._canal = validar_handshake(
+            mensagem, certificado, self._chave_privada, self.chave_publica, self.id_cliente
+        )
+        await escrever_quadro(self._escritor, codificar_mensagem(self._canal.empacotar({"type": "READY"})))
+        return salt
 
     async def fechar(self):
+        self._encerrando = True
         if self._escritor is not None:
             await connection.fechar(self._escritor)
-        # Esquece todo o material cripto da sessao.
         self.peers.clear()
         self._salt = None
+        self._canal = None
+        self._chave_privada = None
 
     # ------------------------------------------------------------------ envio
 
@@ -108,13 +129,15 @@ class Cliente:
 
     async def enviar_texto(self, id_peer, texto):
         """Cifra o texto para o peer e envia pelo relay. Retorna o quadro E2E enviado."""
+        if self._encerrando or self._canal is None:
+            raise ErroCliente("cliente desconectado")
         estado = self.peers.get(id_peer)
         if estado is None:
             raise ErroCliente("unknown peer")
         dados = texto.encode("utf-8") if isinstance(texto, str) else texto
         async with self._trava_envio:
             quadro = preparar_envio(estado, self.id_bytes, dados)
-            await connection.enviar_relay(self._escritor, id_peer, quadro)
+            await connection.enviar_relay(self._escritor, id_peer, quadro, self._canal)
         return quadro
 
     # ------------------------------------------------------------------ recebimento
@@ -125,11 +148,15 @@ class Cliente:
         Um quadro TCP/JSON malformado vindo do servidor encerra a conexao com
         seguranca (evento "desconectado" com o motivo).
         """
+        if self._escutando or self._canal is None:
+            raise ErroCliente("escuta indisponível ou já iniciada")
+        self._escutando = True
+        leitor, canal = self._leitor, self._canal
         motivo = "server closed the connection"
         try:
-            while True:
-                mensagem = await connection.receber_mensagem(self._leitor)
-                if mensagem is None:
+            while not self._encerrando:
+                mensagem = await connection.receber_mensagem(leitor, canal)
+                if mensagem is None or self._encerrando:
                     break
                 self.processar_mensagem(mensagem)
         except (ErroQuadro, ErroProtocolo, ErroCliente) as erro:
@@ -138,6 +165,7 @@ class Cliente:
             motivo = f"connection lost: {type(erro).__name__}"
         finally:
             await self.fechar()
+            self._escutando = False
             self.eventos.put_nowait(Evento("desconectado", texto=motivo))
 
     def processar_mensagem(self, mensagem):
@@ -169,7 +197,9 @@ class Cliente:
             )
         except ValueError as erro:   # ex.: chave X25519 de ordem baixa
             raise ErroProtocolo("invalid peer public key") from erro
-        # Peer novo (ou reconectado com outro par efemero): estado sempre recomeca.
+        if id_peer in self.peers:
+            raise ErroProtocolo("peer duplicado sem aviso de saída")
+        # Peer novo: estado começa após a saída da sessão anterior.
         self.peers[id_peer] = estado
         return id_peer
 

@@ -14,33 +14,32 @@ def registro_cliente(id_cliente, chave):
     return {"type": "REGISTER", "client_id": id_cliente, "client_public_key": base64.b64encode(chave).decode()}
 
 
-async def receber(leitor):
-    return decodificar_mensagem(await asyncio.wait_for(ler_quadro(leitor), 1))
+async def receber(leitor, canal):
+    return canal.desempacotar(decodificar_mensagem(await asyncio.wait_for(ler_quadro(leitor), 1)))
 
 
 @pytest.mark.asyncio
-async def testar_registro_encaminhamento_e_desconexao():
+async def testar_registro_encaminhamento_e_desconexao(registrar_cliente_autenticado):
     sessoes = RegistroSessoes()
     servidor = await iniciar_servidor(porta=0, sessoes=sessoes)
     porta = servidor.sockets[0].getsockname()[1]
     id_a, id_b = str(uuid4()), str(uuid4())
-    chave_a, chave_b = bytes(range(32)), bytes(range(32, 64))
     leitor_a, escritor_a = await asyncio.open_connection("127.0.0.1", porta)
     leitor_b, escritor_b = await asyncio.open_connection("127.0.0.1", porta)
     try:
         assert len(servidor.sockets) == 1
-        await escrever_quadro(escritor_a, codificar_mensagem(registro_cliente(id_a, chave_a)))
-        assert await receber(leitor_a) == {"type": "CLIENT_LIST", "clients": []}
-        await escrever_quadro(escritor_b, codificar_mensagem(registro_cliente(id_b, chave_b)))
-        assert await receber(leitor_b) == {"type": "CLIENT_LIST", "clients": [{"client_id": id_a, "client_public_key": base64.b64encode(chave_a).decode()}]}
-        assert await receber(leitor_a) == {"type": "CLIENT_JOINED", "client_id": id_b, "client_public_key": base64.b64encode(chave_b).decode()}
+        canal_a, chave_a = await registrar_cliente_autenticado(leitor_a, escritor_a, id_a)
+        assert await receber(leitor_a, canal_a) == {"type": "CLIENT_LIST", "clients": []}
+        canal_b, chave_b = await registrar_cliente_autenticado(leitor_b, escritor_b, id_b)
+        assert await receber(leitor_b, canal_b) == {"type": "CLIENT_LIST", "clients": [{"client_id": id_a, "client_public_key": base64.b64encode(chave_a).decode()}]}
+        assert await receber(leitor_a, canal_a) == {"type": "CLIENT_JOINED", "client_id": id_b, "client_public_key": base64.b64encode(chave_b).decode()}
         assert {s.id_cliente for s in sessoes.listar_clientes()} == {id_a, id_b}
         conteudo = base64.b64encode(b"opaque test bytes").decode()
-        await escrever_quadro(escritor_a, codificar_mensagem({"type": "RELAY", "recipient_id": id_b, "payload": conteudo}))
-        assert await receber(leitor_b) == {"type": "RELAY", "sender_id": id_a, "recipient_id": id_b, "payload": conteudo}
+        await escrever_quadro(escritor_a, codificar_mensagem(canal_a.empacotar({"type": "RELAY", "recipient_id": id_b, "payload": conteudo})))
+        assert await receber(leitor_b, canal_b) == {"type": "RELAY", "sender_id": id_a, "recipient_id": id_b, "payload": conteudo}
         escritor_b.close()
         await escritor_b.wait_closed()
-        assert await receber(leitor_a) == {"type": "CLIENT_LEFT", "client_id": id_b}
+        assert await receber(leitor_a, canal_a) == {"type": "CLIENT_LEFT", "client_id": id_b}
         assert [s.id_cliente for s in sessoes.listar_clientes()] == [id_a]
     finally:
         escritor_a.close()

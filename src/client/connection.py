@@ -1,6 +1,6 @@
 """Camada de rede do cliente: conexao TCP e mensagens JSON de controle.
 
-Nao conhece criptografia: o payload do RELAY ja chega aqui como bytes opacos
+O canal autentica o envelope; o payload do RELAY chega aqui como bytes opacos
 (o quadro E2E montado em src/client/peers.py).
 """
 
@@ -31,7 +31,7 @@ async def registrar(escritor, id_cliente, chave_publica):
     }))
 
 
-async def receber_mensagem(leitor):
+async def receber_mensagem(leitor, canal=None):
     """Retorna a proxima mensagem de controle (dict) ou None quando o servidor fecha.
 
     Lanca ErroQuadro / ErroProtocolo se o servidor enviar algo malformado.
@@ -39,19 +39,20 @@ async def receber_mensagem(leitor):
     dados = await ler_quadro(leitor)
     if dados is None:
         return None
-    return decodificar_mensagem(dados)
+    mensagem = decodificar_mensagem(dados)
+    return canal.desempacotar(mensagem) if canal is not None else mensagem
 
 
-async def enviar_relay(escritor, id_destinatario, payload):
+async def enviar_relay(escritor, id_destinatario, payload, canal):
     """Pede ao servidor para encaminhar o payload (bytes opacos) ao destinatario."""
     validar_id_cliente(id_destinatario)
     if not isinstance(payload, bytes) or not payload:
         raise ValueError("payload must be non-empty bytes")
-    await escrever_quadro(escritor, codificar_mensagem({
+    await escrever_quadro(escritor, codificar_mensagem(canal.empacotar({
         "type": "RELAY",
         "recipient_id": id_destinatario,
         "payload": base64.b64encode(payload).decode("ascii"),
-    }))
+    })))
 
 
 async def fechar(escritor):

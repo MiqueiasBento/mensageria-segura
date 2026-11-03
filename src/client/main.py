@@ -71,15 +71,15 @@ async def executar_comando(cliente, linha):
         try:
             id_peer = cliente.resolver_peer(prefixo)
             await cliente.enviar_texto(id_peer, texto)
-        except (ErroCliente, ValueError) as erro:
+        except (ErroCliente, ValueError, ConnectionError, OSError) as erro:
             print(f"! nao enviado: {erro}")
     else:
         print(AJUDA)
     return True
 
 
-async def principal(endereco, porta):
-    cliente = Cliente()
+async def principal(endereco, porta, certificado=None):
+    cliente = Cliente(certificado_confiavel=certificado)
     try:
         await cliente.conectar(endereco, porta)
     except (ConnectionError, OSError, ValueError, ErroCliente) as erro:
@@ -110,16 +110,17 @@ async def principal(endereco, porta):
     return 0
 
 
-def main():
+def executar():
     argumentos = argparse.ArgumentParser(description="Cliente de mensageria segura")
     argumentos.add_argument("--host", default=ENDERECO_PADRAO)
     argumentos.add_argument("--port", type=int, default=PORTA_PADRAO)
+    argumentos.add_argument("--certificado", help="caminho do certificado confiável provisionado")
     opcoes = argumentos.parse_args()
     try:
-        return asyncio.run(principal(opcoes.host, opcoes.port))
+        return asyncio.run(principal(opcoes.host, opcoes.port, opcoes.certificado))
     except KeyboardInterrupt:
         return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(executar())

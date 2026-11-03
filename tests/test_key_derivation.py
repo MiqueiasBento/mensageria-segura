@@ -4,7 +4,6 @@ import pytest
 
 from src.common.constants import TAMANHO_CHAVE_AES, TAMANHO_CHAVE_PUBLICA
 from src.crypto.key_derivation import (
-    SALT_PROVISORIO,
     calcular_segredo,
     derivar_chaves,
     gerar_par_efemero,
@@ -96,43 +95,43 @@ def testar_vetor_rfc5869_caso_1():
 
 def testar_envio_de_um_lado_e_recebimento_do_outro():
     segredo, id_a, id_b = par_com_segredo()
-    envio_a, recebimento_a = derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_b)
-    envio_b, recebimento_b = derivar_chaves(segredo, SALT_PROVISORIO, id_b, id_a)
+    envio_a, recebimento_a = derivar_chaves(segredo, SALT_TESTE, id_a, id_b)
+    envio_b, recebimento_b = derivar_chaves(segredo, SALT_TESTE, id_b, id_a)
     assert envio_a == recebimento_b
     assert envio_b == recebimento_a
 
 
 def testar_direcoes_usam_chaves_diferentes():
     segredo, id_a, id_b = par_com_segredo()
-    envio, recebimento = derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_b)
+    envio, recebimento = derivar_chaves(segredo, SALT_TESTE, id_a, id_b)
     assert envio != recebimento
 
 
 def testar_chaves_tem_16_bytes():
     segredo, id_a, id_b = par_com_segredo()
-    for chave in derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_b):
+    for chave in derivar_chaves(segredo, SALT_TESTE, id_a, id_b):
         assert len(chave) == TAMANHO_CHAVE_AES
 
 
 def testar_menor_id_e_o_lado_a():
     segredo, _, _ = par_com_segredo()
     id_menor, id_maior = bytes(15) + b"\x01", bytes(15) + b"\x02"
-    prk = hkdf_extract(SALT_PROVISORIO, segredo)
+    prk = hkdf_extract(SALT_TESTE, segredo)
     a2b, b2a = hkdf_expand(prk, b"A2B"), hkdf_expand(prk, b"B2A")
-    assert derivar_chaves(segredo, SALT_PROVISORIO, id_menor, id_maior) == (a2b, b2a)
-    assert derivar_chaves(segredo, SALT_PROVISORIO, id_maior, id_menor) == (b2a, a2b)
+    assert derivar_chaves(segredo, SALT_TESTE, id_menor, id_maior) == (a2b, b2a)
+    assert derivar_chaves(segredo, SALT_TESTE, id_maior, id_menor) == (b2a, a2b)
 
 
 def testar_salt_diferente_gera_chaves_diferentes():
     segredo, id_a, id_b = par_com_segredo()
-    com_salt_zero = derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_b)
+    com_salt_zero = derivar_chaves(segredo, SALT_TESTE, id_a, id_b)
     com_outro_salt = derivar_chaves(segredo, b"\x01" * 16, id_a, id_b)
     assert set(com_salt_zero).isdisjoint(com_outro_salt)
 
 
 def testar_salts_diferentes_nos_dois_lados_nao_combinam():
     segredo, id_a, id_b = par_com_segredo()
-    envio_a, _ = derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_b)
+    envio_a, _ = derivar_chaves(segredo, SALT_TESTE, id_a, id_b)
     _, recebimento_b = derivar_chaves(segredo, b"\x01" * 16, id_b, id_a)
     assert envio_a != recebimento_b
 
@@ -140,8 +139,8 @@ def testar_salts_diferentes_nos_dois_lados_nao_combinam():
 def testar_pares_diferentes_tem_chaves_diferentes():
     segredo_1, id_a, id_b = par_com_segredo()
     segredo_2, _, _ = par_com_segredo()
-    assert derivar_chaves(segredo_1, SALT_PROVISORIO, id_a, id_b) != derivar_chaves(
-        segredo_2, SALT_PROVISORIO, id_a, id_b
+    assert derivar_chaves(segredo_1, SALT_TESTE, id_a, id_b) != derivar_chaves(
+        segredo_2, SALT_TESTE, id_a, id_b
     )
 
 
@@ -157,7 +156,7 @@ def testar_pares_diferentes_tem_chaves_diferentes():
 )
 def testar_entradas_com_tamanho_invalido_sao_rejeitadas(campo, valor):
     segredo, id_a, id_b = par_com_segredo()
-    argumentos = {"segredo": segredo, "salt": SALT_PROVISORIO, "meu_id": id_a, "id_peer": id_b}
+    argumentos = {"segredo": segredo, "salt": SALT_TESTE, "meu_id": id_a, "id_peer": id_b}
     argumentos[campo] = valor
     with pytest.raises(ValueError):
         derivar_chaves(**argumentos)
@@ -166,4 +165,8 @@ def testar_entradas_com_tamanho_invalido_sao_rejeitadas(campo, valor):
 def testar_id_do_peer_igual_ao_proprio_e_rejeitado():
     segredo, id_a, _ = par_com_segredo()
     with pytest.raises(ValueError):
-        derivar_chaves(segredo, SALT_PROVISORIO, id_a, id_a)
+        derivar_chaves(segredo, SALT_TESTE, id_a, id_a)
+
+
+# Vetor fixo apenas nos testes unitários; a rede exige salt autenticado.
+SALT_TESTE = bytes(16)

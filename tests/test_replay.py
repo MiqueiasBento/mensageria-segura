@@ -10,7 +10,7 @@ from src.client.peers import (
     preparar_envio,
     processar_recebimento,
 )
-from src.crypto.key_derivation import SALT_PROVISORIO, gerar_par_efemero
+from src.crypto.key_derivation import gerar_par_efemero
 
 
 def criar_par():
@@ -18,8 +18,8 @@ def criar_par():
     privada_a, publica_a = gerar_par_efemero()
     privada_b, publica_b = gerar_par_efemero()
     id_a, id_b = uuid.uuid4().bytes, uuid.uuid4().bytes
-    estado_a = criar_estado_peer(privada_a, id_a, id_b, publica_b, SALT_PROVISORIO)
-    estado_b = criar_estado_peer(privada_b, id_b, id_a, publica_a, SALT_PROVISORIO)
+    estado_a = criar_estado_peer(privada_a, id_a, id_b, publica_b, SALT_TESTE)
+    estado_b = criar_estado_peer(privada_b, id_b, id_a, publica_a, SALT_TESTE)
     return id_a, estado_a, id_b, estado_b
 
 
@@ -135,3 +135,7 @@ def testar_contador_de_envio_esgotado_e_rejeitado():
     estado_a.seq_envio = 2**64
     with pytest.raises(ErroMensagem):
         preparar_envio(estado_a, id_a, b"x")
+
+
+# Vetor fixo apenas nos testes unitários; a rede exige salt autenticado.
+SALT_TESTE = bytes(16)

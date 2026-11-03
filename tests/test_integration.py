@@ -173,26 +173,23 @@ async def testar_reconexao_gera_chaves_novas():
 
 
 @pytest.mark.asyncio
-async def testar_cliente_desconecta_com_quadro_invalido_do_servidor():
-    async def servidor_quebrado(leitor, escritor):
-        await ler_quadro(leitor)   # REGISTER
-        await escrever_quadro(escritor, codificar_mensagem({"type": "CLIENT_LIST", "clients": []}))
-        escritor.write((64 * 1024 + 1).to_bytes(4, "big"))   # comprimento invalido
-        await escritor.drain()
-        await leitor.read()        # espera o cliente fechar
-        escritor.close()
+async def testar_cliente_desconecta_com_quadro_invalido_do_servidor(monkeypatch):
+    original = conexao_servidor.enviar
 
-    servidor = await asyncio.start_server(servidor_quebrado, "127.0.0.1", 0)
-    try:
+    async def enviar_quadro_invalido(sessao, mensagem):
+        await original(sessao, mensagem)
+        if mensagem["type"] == "CLIENT_LIST":
+            sessao.escritor.write((64 * 1024 + 1).to_bytes(4, "big"))
+            await sessao.escritor.drain()
+
+    monkeypatch.setattr(conexao_servidor, "enviar", enviar_quadro_invalido)
+    async with servidor_local() as porta:
         cliente = Cliente()
-        await cliente.conectar(porta=servidor.sockets[0].getsockname()[1])
+        await cliente.conectar(porta=porta)
         await asyncio.wait_for(cliente.escutar(), 1)
         tipo, _, motivo = await proximo_evento(cliente)
         assert tipo == "desconectado" and "invalid frame length" in motivo
         assert cliente.peers == {}
-    finally:
-        servidor.close()
-        await servidor.wait_closed()
 
 
 @pytest.mark.asyncio
@@ -216,7 +213,9 @@ async def testar_logs_nao_expoem_segredos_nem_conteudo(capsys):
 @pytest.mark.asyncio
 async def testar_mensagem_error_do_servidor_nao_derruba_o_cliente():
     async with servidor_local() as porta, clientes_conectados(porta, 2) as (alice, bob):
-        alice.processar_mensagem({"type": "ERROR", "code": "UNKNOWN_CLIENT"})
+        from uuid import uuid4
+        from src.client.connection import enviar_relay
+        await enviar_relay(alice._escritor, str(uuid4()), b"opaco", alice._canal)
         assert await proximo_evento(alice) == ("erro", None, "UNKNOWN_CLIENT")
         await alice.enviar_texto(bob.id_cliente, "ainda conectada")
         assert await proximo_evento(bob) == ("mensagem", alice.id_cliente, "ainda conectada")

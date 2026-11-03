@@ -7,8 +7,6 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from src.common.constants import TAMANHO_CHAVE_AES, TAMANHO_CHAVE_PUBLICA, TAMANHO_ID, TAMANHO_SALT
 
-# Remover na Etapa 10, quando o salt_srv chegar pelo handshake do servidor.
-SALT_PROVISORIO = bytes(TAMANHO_SALT)
 TAMANHO_SEGREDO = 32  # saida do X25519
 
 

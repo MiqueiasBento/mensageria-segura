@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 from src.client.peers import ErroMensagem, criar_estado_peer, preparar_envio, processar_recebimento
-from src.crypto.key_derivation import SALT_PROVISORIO, gerar_par_efemero
+from src.crypto.key_derivation import gerar_par_efemero
 
 # Regioes do quadro E2E: (inicio, fim) em bytes.
 REGIOES = {
@@ -29,7 +29,7 @@ def criar_clientes(quantidade):
 def estado(de, para):
     meu_id, minha_privada, _ = de
     id_peer, _, publica_peer = para
-    return meu_id, criar_estado_peer(minha_privada, meu_id, id_peer, publica_peer, SALT_PROVISORIO)
+    return meu_id, criar_estado_peer(minha_privada, meu_id, id_peer, publica_peer, SALT_TESTE)
 
 
 def inverter_bit(quadro, posicao):
@@ -96,3 +96,7 @@ def testar_quadro_malformado_e_rejeitado(quadro):
     id_b, b_de_a = estado(b, a)
     with pytest.raises(ErroMensagem, match="malformed"):
         processar_recebimento(b_de_a, id_b, quadro)
+
+
+# Vetor fixo apenas nos testes unitários; a rede exige salt autenticado.
+SALT_TESTE = bytes(16)
