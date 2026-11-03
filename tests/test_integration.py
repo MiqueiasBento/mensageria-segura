@@ -211,3 +211,12 @@ async def testar_logs_nao_expoem_segredos_nem_conteudo(capsys):
         assert segredo.hex() not in log
         assert base64.b64encode(segredo).decode() not in log
         assert repr(segredo) not in log
+
+
+@pytest.mark.asyncio
+async def testar_mensagem_error_do_servidor_nao_derruba_o_cliente():
+    async with servidor_local() as porta, clientes_conectados(porta, 2) as (alice, bob):
+        alice.processar_mensagem({"type": "ERROR", "code": "UNKNOWN_CLIENT"})
+        assert await proximo_evento(alice) == ("erro", None, "UNKNOWN_CLIENT")
+        await alice.enviar_texto(bob.id_cliente, "ainda conectada")
+        assert await proximo_evento(bob) == ("mensagem", alice.id_cliente, "ainda conectada")

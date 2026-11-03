@@ -42,6 +42,8 @@ async def mostrar_eventos(cliente):
         elif evento.tipo == "rejeitada":
             origem = curto(evento.id_peer) if evento.id_peer else "?"
             print(f"! mensagem de {origem} rejeitada: {evento.texto}")
+        elif evento.tipo == "erro":
+            print(f"! erro do servidor: {evento.texto}")
         elif evento.tipo == "desconectado":
             print(f"* desconectado: {evento.texto}")
             return

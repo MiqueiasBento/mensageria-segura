@@ -29,10 +29,10 @@ class ErroCliente(Exception):
 
 @dataclass(frozen=True)
 class Evento:
-    """tipo: "entrou" | "saiu" | "mensagem" | "rejeitada" | "desconectado"."""
+    """tipo: "entrou" | "saiu" | "mensagem" | "rejeitada" | "erro" | "desconectado"."""
     tipo: str
     id_peer: str | None = None
-    texto: str | None = None   # texto decifrado ("mensagem") ou motivo ("rejeitada"/"desconectado")
+    texto: str | None = None   # texto decifrado ("mensagem") ou motivo (demais tipos)
 
 
 def impressao_digital(chave_publica):
@@ -152,6 +152,9 @@ class Cliente:
                 self.eventos.put_nowait(Evento("saiu", id_peer))
         elif tipo == "RELAY":
             self._receber_relay(mensagem)
+        elif tipo == "ERROR":
+            # Erro nao fatal reportado pelo servidor (ex.: UNKNOWN_CLIENT); so codigo, sem segredos.
+            self.eventos.put_nowait(Evento("erro", texto=str(mensagem.get("code", "UNKNOWN"))[:64]))
         else:
             raise ErroProtocolo("unexpected message type from server")
 
