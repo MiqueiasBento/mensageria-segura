@@ -1,3 +1,5 @@
+> Registro histórico anterior ao handshake. A integração foi concluída em 03/11/2026; consulte o [relatório do Dev A](../relatorio-progresso-dev-a.md) e o [protocolo vigente](../protocol.md). O salt provisório e as pendências descritas abaixo foram substituídos pela implementação autenticada.
+
 ## Registro da implementação — cliente e criptografia E2E (Integrante B) — 03/11/2026
 
 Branch `feature/cliente-cripto`. Etapas 1–9 e 11 do passo a passo do Integrante B concluídas;

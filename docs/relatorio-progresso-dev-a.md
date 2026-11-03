@@ -34,3 +34,21 @@ Validação desta parte: 18 testes aprovados de identidade, handshake, adultera�
 A camada E2E do Dev B foi preservada: AES-128-GCM, AAD, ordem dos campos, IV base, contadores e a regra do menor UUID para selecionar A2B/B2A. Os testes anteriores foram adaptados para executar o handshake real. Não existe modo de rede sem autenticação usado pelos testes de integração.
 
 Validação desta parte: **149 testes aprovados**, incluindo ataques ao handshake, alteração de lista após o MAC, replay administrativo nos dois sentidos, reconexão na mesma instância, rejeição de quadro de sessão anterior, salt comum por execução, ID duplicado, registros simultâneos e falha de escrita no destino. Também foi executada uma demonstração com três processos reais: servidor e dois clientes de terminal, `/peers`, mensagens nos dois sentidos, `/sair` e `Ctrl+C`. Os logs do servidor não contiveram as mensagens de teste.
+
+## Parte 3 — Documentação e entrega reproduzível
+
+O README contém os comandos atuais de instalação, geração da identidade e execução em três terminais. `certs/README.md` explica provisionamento e renovação sem sobrescrita. `docs/protocol.md` descreve a versão implementada, incluindo os 96 bytes assinados, HKDF administrativo, envelope HMAC e quadro E2E. `docs/architecture.md` registra as responsabilidades e o estado de cada processo. `docs/test-plan.md` associa critérios a testes e contém a demonstração.
+
+O relatório anterior do Dev B foi preservado como histórico, com indicação da integração concluída. As referências a anotações locais ausentes em um clone limpo foram removidas do README. O checklist geral foi atualizado para 14/15: o item restante é os dois integrantes conseguirem explicar o trabalho, que exige ensaio humano.
+
+## Resultado e itens restantes
+
+As partes do Dev A e a integração funcional com o Dev B estão implementadas. Não há dependência técnica aguardando resposta do professor. Permanecem a revisão acadêmica das decisões assumidas e o ensaio da dupla. As 149 verificações aprovadas cobrem os cenários descritos no plano de testes; não equivalem a uma auditoria formal de segurança.
+
+A identidade usada na demonstração foi gerada localmente e não faz parte dos commits. Um clone novo deve gerar a identidade no servidor e provisionar seu certificado nos clientes. Os testes usam certificados temporários e podem ser executados antes dessa geração.
+
+## Versionamento lógico
+
+1. `feat: implementar identidade RSA e autenticação do handshake` — gerador, identidade, primitivas do handshake e testes unitários.
+2. `feat: integrar handshake e controle autenticado ao servidor e cliente` — registro com prova de posse, listas autenticadas, relay, reconexão e testes de rede.
+3. `docs: registrar protocolo integrado e critérios de aceitação` — documentação operacional, decisões, arquitetura, evidências e relatório final.

@@ -1,5 +1,7 @@
 # Plano de implementação — Trabalho Prático 3
 
+> Atualização de 03/11/2026: a implementação foi integrada. As propostas históricas abaixo devem ser lidas junto ao [protocolo vigente](protocol.md) e ao [relatório do Dev A](relatorio-progresso-dev-a.md), que registram as decisões assumidas sem resposta do professor.
+
 Iniciar com aplicação pequena, organizada por responsabilidades, e adicionar os mecanismos criptográficos gradualmente. Como a linguagem, a divisão da dupla e o ambiente ainda não foram definidos, vou propor uma arquitetura inicial independente dessas decisões e indicar uma opção técnica recomendada.
 
 O objetivo não é construir um aplicativo de mensagens completo, com interface gráfica, histórico e cadastro de usuários. É implementar e demonstrar corretamente o protocolo de mensageria segura exigido pelo professor.
@@ -165,21 +167,17 @@ O sistema pode ser iniciado do zero e todos os cenários obrigatórios podem ser
 
 As durações são estimativas para planejamento, não garantias de execução. O ideal é reservar os últimos dias exclusivamente para integração e correção, evitando novas funcionalidades nessa fase.
 
-## 4. Cuidados técnicos que devem ser resolvidos antes da implementação criptográfica
+## 4. Decisões técnicas adotadas
 
-Há uma ambiguidade relevante no material do professor: ele menciona a assinatura de uma chave efêmera ECDHE na descrição geral, mas a fórmula detalhada da assinatura apresenta `pk_server || pk_client || client_id || salt`, sem deixar inteiramente clara a distinção entre a chave pública RSA do servidor e uma eventual chave efêmera X25519 do servidor.
+As ambiguidades foram resolvidas por autorização do responsável pelo projeto:
 
-Como o protocolo também utiliza chaves X25519 efêmeras dos próprios clientes para a comunicação E2E, não devemos presumir que esses elementos sejam intercambiáveis.
+- `pk_server` é X25519 efêmera; a identidade RSA assina a transcrição com RSA-PSS/SHA256.
+- O cliente usa certificado autoassinado previamente provisionado, sem aceitação automática pela rede.
+- `salt_srv` é aleatório por execução do servidor e comum aos clientes. Reconectar renova as chaves efêmeras.
+- Listas de chaves e comandos usam HMAC com contadores por conexão. O conteúdo entre clientes continua usando AES-GCM e contadores E2E próprios.
+- O servidor atua como diretório confiável. Autenticação independente das identidades dos usuários não faz parte desta entrega.
 
-Antes de implementar o handshake, vale confirmar com o professor exatamente qual chave pública deve ser assinada e qual deve ser incluída na fórmula do hash. Isso evita implementar uma interpretação que funcione tecnicamente, mas não corresponda ao protocolo esperado na avaliação.
-
-Outros cuidados:
-
-- Não reutilizar um nonce com a mesma chave AES-GCM.
-- Não avançar o contador de recebimento antes de a autenticação da mensagem ser validada.
-- Não confiar em uma chave pública apenas porque ela foi recebida do servidor; o mecanismo de autenticação especificado precisa proteger a etapa correspondente.
-- Não registrar segredos, chaves privadas ou conteúdo das mensagens em logs.
-- Não considerar a implementação concluída apenas porque a mensagem pode ser decifrada: os testes negativos também precisam funcionar.
+Consulte os parâmetros exatos, o modelo de confiança e as justificativas em [protocol.md](protocol.md).
 
 ## 5. Como organizar a dupla e o repositório
 
@@ -201,35 +199,31 @@ No Git, criem um repositório compartilhado com uma branch principal protegida e
 
 ## Acompanhamento
 
-0/15 concluídos
+14/15 concluídos. Evidências em [test-plan.md](test-plan.md). Falta o ensaio e a explicação dos dois integrantes.
 
 Rede e protocolo
-- [ ] Servidor aceita múltiplas conexões TCP
-- [ ] Framing por comprimento de 4 bytes funciona
-- [ ] Registro e distribuição de chaves públicas funcionam
+- [x] Servidor aceita múltiplas conexões TCP
+- [x] Framing por comprimento de 4 bytes funciona
+- [x] Registro e distribuição de chaves públicas funcionam
 
 Criptografia
-- [ ] Handshake e validação da assinatura funcionam
-- [ ] ECDH e HKDF geram chaves compatíveis
-- [ ] Mensagens E2E usam AES-128-GCM corretamente
+- [x] Handshake e validação da assinatura funcionam
+- [x] ECDH e HKDF geram chaves compatíveis
+- [x] Mensagens E2E usam AES-128-GCM corretamente
 
 Segurança
-- [ ] Adulteração é rejeitada
-- [ ] Replay é rejeitado
-- [ ] Framing inválido é tratado com segurança
-- [ ] Reconexão estabelece novas chaves
-- [ ] Logs não expõem segredos
+- [x] Adulteração é rejeitada
+- [x] Replay é rejeitado
+- [x] Framing inválido é tratado com segurança
+- [x] Reconexão estabelece novas chaves
+- [x] Logs não expõem segredos
 
 Entrega
-- [ ] Testes automatizados executam de forma reproduzível
-- [ ] README explica como executar o sistema
-- [ ] Documentação descreve o protocolo
+- [x] Testes automatizados executam de forma reproduzível
+- [x] README explica como executar o sistema
+- [x] Documentação descreve o protocolo
 - [ ] Ambos os integrantes conseguem explicar o código
 
 A checklist serve para acompanhar a evolução, mas não substitui a execução dos testes: cada item deve ser marcado apenas quando houver evidência de que o requisito foi atendido.
 
-Até definir todos os pontos, sugestão é seguir esta ordem:
-1. Fechar as decisões de serialização e enquadramento.
-2. Implementar a comunicação TCP entre servidor e dois clientes.
-3. Validar registro, lista de clientes e encaminhamento de mensagens simples.
-4. Só então começar a camada criptográfica.
+Próxima atividade da dupla: executar a demonstração do [plano de testes](test-plan.md) e revisar a explicação do handshake, dos contadores e dos limites de confiança.
