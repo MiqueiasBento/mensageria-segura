@@ -58,6 +58,7 @@ Resultado em 03/11/2026: **149 testes aprovados**. Os testes geram identidade te
 - [Protocolo](docs/protocol.md): bytes assinados, mensagens, chaves e contadores.
 - [Arquitetura](docs/architecture.md): componentes e responsabilidades.
 - [Plano de testes](docs/test-plan.md): critérios de aceitação e roteiro de demonstração.
-- [Relatório histórico do Dev B](docs/anotacoes/etapa-cliente-cripto.md): entrega anterior à integração do handshake.
+- [Relatório histórico do Dev B](docs/relatorio-dev-b.md): entrega anterior à integração do handshake.
+- [Diagramas da apresentação](docs/diagramas-apresentacao.md): arquitetura, handshake, relay, quadros e chaves em um só arquivo.
 
 O servidor é a autoridade confiável para o diretório de chaves. O certificado pinado protege contra servidores impostores. Um servidor comprometido que controla a chave RSA pode falsificar o diretório; resistir a esse cenário exigiria autenticação independente das chaves dos usuários. UUIDs identificam sessões, não comprovam a identidade de pessoas. O canal administrativo autentica metadados, mas não os cifra. Somente as mensagens entre clientes têm confidencialidade E2E.
