@@ -1,6 +1,8 @@
 # Mensageria Segura | Segurança de Software
 
-Trabalho prático de Segurança de Software — Prof. Michel Sales.
+**Dupla:**
+- Antônio Rewelli de Oliveira dos Santos
+- Miqueias Bento da Silva
 
 Servidor TCP com identidade RSA-PSS e clientes de terminal com X25519, HKDF-SHA256, AES-128-GCM e proteção contra replay. O servidor distribui chaves públicas por um canal autenticado e encaminha o conteúdo cifrado sem possuir as chaves E2E dos pares.
 
